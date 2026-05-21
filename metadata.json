@@ -1,0 +1,6 @@
+{
+  "name": "Hogis Cinemas",
+  "description": "Web application for Hogis Cinemas to view schedules, select seats, and book tickets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
