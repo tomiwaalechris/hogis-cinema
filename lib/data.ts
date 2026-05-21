@@ -71,6 +71,32 @@ export const saveMovies = (movies: Movie[]) => {
   }
 };
 
+export interface Order {
+  id: string;
+  movie: Movie;
+  time: string;
+  seats: string[];
+  totalPrice: number;
+  customerName: string;
+  email: string;
+  status: 'VALID' | 'USED' | 'REFUNDED';
+  createdAt: string;
+}
+
+export const getOrders = (): Order[] => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('hogis_orders');
+    if (stored) return JSON.parse(stored);
+  }
+  return [];
+};
+
+export const saveOrders = (orders: Order[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('hogis_orders', JSON.stringify(orders));
+  }
+};
+
 export const generateSeats = () => {
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   const columns = 12;

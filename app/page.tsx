@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'react-qr-code';
 import { 
   Film, 
   Clock, 
@@ -22,7 +23,7 @@ import { getMovies, INITIAL_MOVIES, Movie, generateSeats } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
 // --- View States ---
-type ViewState = 'HOME' | 'SEAT_SELECTION' | 'CHECKOUT' | 'RECEIPT';
+type ViewState = 'HOME' | 'SEAT_SELECTION' | 'CHECKOUT' | 'RECEIPT' | 'MOVIES' | 'CONCESSIONS';
 
 interface BookingDetails {
   movie: Movie | null;
@@ -45,6 +46,7 @@ export default function Home() {
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMovies(getMovies());
   }, []);
 
@@ -74,10 +76,25 @@ export default function Home() {
           </div>
 
           <nav className="hidden md:flex gap-8 text-sm font-medium text-gray-400 uppercase tracking-widest">
-            <button onClick={goHome} className="text-white border-b-2 border-[#E50914] pb-1 transition-colors">Schedule</button>
-            <button className="hover:text-white transition-colors">Movies</button>
-            <button className="hover:text-white transition-colors">Concessions</button>
-            <a href="/admin" className="hover:text-white transition-colors flex items-center gap-1"><Settings size={14} /> Admin</a>
+            <button 
+              onClick={() => { setView('HOME'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+              className={cn("transition-colors pb-1", view === 'HOME' || view === 'SEAT_SELECTION' || view === 'CHECKOUT' || view === 'RECEIPT' ? "text-white border-b-2 border-[#E50914]" : "border-b-2 border-transparent hover:text-white")}
+            >
+              Schedule
+            </button>
+            <button 
+              onClick={() => { setView('MOVIES'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+              className={cn("transition-colors pb-1", view === 'MOVIES' ? "text-white border-b-2 border-[#E50914]" : "border-b-2 border-transparent hover:text-white")}
+            >
+              Movies
+            </button>
+            <button 
+              onClick={() => { setView('CONCESSIONS'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+              className={cn("transition-colors pb-1", view === 'CONCESSIONS' ? "text-white border-b-2 border-[#E50914]" : "border-b-2 border-transparent hover:text-white")}
+            >
+              Concessions
+            </button>
+            <a href="/admin" className="hover:text-white transition-colors pb-1 border-b-2 border-transparent flex items-center gap-1"><Settings size={14} /> Admin</a>
           </nav>
 
           <button className="hidden md:flex bg-white text-black px-5 py-2.5 rounded-full text-sm font-bold hover:bg-neutral-200 transition-colors">
@@ -118,11 +135,30 @@ export default function Home() {
               booking={booking}
               onBack={() => setView('SEAT_SELECTION')}
               onSuccess={(name, email) => {
+                const orderId = `HC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+                
+                const newOrder = {
+                  id: orderId,
+                  movie: booking.movie!,
+                  time: booking.time!,
+                  seats: booking.seats,
+                  totalPrice: booking.totalPrice,
+                  customerName: name,
+                  email,
+                  status: 'VALID' as const,
+                  createdAt: new Date().toISOString()
+                };
+                
+                if (typeof window !== 'undefined') {
+                  const stored = JSON.parse(localStorage.getItem('hogis_orders') || '[]');
+                  localStorage.setItem('hogis_orders', JSON.stringify([...stored, newOrder]));
+                }
+
                 setBooking((prev) => ({ 
                   ...prev, 
                   customerName: name, 
                   email,
-                  orderId: `HC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+                  orderId
                 }));
                 setView('RECEIPT');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -135,6 +171,20 @@ export default function Home() {
               booking={booking}
               onDone={goHome}
             />
+          )}
+          {view === 'MOVIES' && (
+            <MoviesView 
+              key="movies"
+              movies={movies}
+              onSelectMovie={(movie) => {
+                setBooking((prev) => ({ ...prev, movie, time: movie.times[0] }));
+                setView('SEAT_SELECTION');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+          {view === 'CONCESSIONS' && (
+            <ConcessionsView key="concessions" />
           )}
         </AnimatePresence>
       </main>
@@ -300,7 +350,7 @@ function HomeView({ movies, onSelectMovie }: { movies: Movie[]; onSelectMovie: (
             <div className="bg-[#141414] border border-white/5 rounded-xl p-12 flex flex-col items-center justify-center text-center">
               <Film size={48} className="text-gray-700 mb-4" />
               <h4 className="text-lg font-bold text-white mb-2">No movies found</h4>
-              <p className="text-sm text-gray-500">We couldn't find any movies matching your search criteria.</p>
+              <p className="text-sm text-gray-500">We couldn&apos;t find any movies matching your search criteria.</p>
               <button 
                 onClick={() => { setSearchQuery(''); setSelectedGenre(null); }}
                 className="mt-6 px-6 py-2 bg-[#E50914] text-white text-sm font-bold uppercase tracking-wider rounded-lg hover:brightness-110 transition-colors"
@@ -760,12 +810,10 @@ function ReceiptView({
                 </div>
               </div>
 
-              {/* Barcode Mock */}
+              {/* QR Code */}
               <div className="mt-10 flex flex-col items-center">
-                 <div className="w-full h-16 flex justify-between items-center opacity-60">
-                    {[...Array(40)].map((_, i) => (
-                      <div key={i} className={cn("bg-black h-full", i % 3 === 0 || i % 7 === 0 ? "w-1" : "w-0.5")} />
-                    ))}
+                 <div className="w-40 h-40 bg-white p-2 flex items-center justify-center">
+                    <QRCode value={booking.orderId || ''} size={144} />
                  </div>
                  <p className="text-[10px] font-mono text-neutral-500 mt-2">{booking.orderId} • SCAN AT ENTRANCE</p>
               </div>
@@ -800,6 +848,146 @@ function ReceiptView({
         >
           Return to Home
         </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function MoviesView({ movies, onSelectMovie }: { movies: Movie[]; onSelectMovie: (m: Movie) => void }) {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-7xl mx-auto px-4 md:px-8 py-12 w-full"
+    >
+      <h2 className="text-3xl lg:text-5xl font-black uppercase tracking-tighter mb-8 text-white">
+        Now <span className="text-[#E50914]">Showing</span>
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-16">
+        {movies.map(movie => (
+          <div key={movie.id} className="group cursor-pointer">
+            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#1A1A1A] mb-4">
+              <Image 
+                src={movie.posterUrl} 
+                alt={movie.title} 
+                fill 
+                className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4 p-4">
+                 <button 
+                   onClick={() => onSelectMovie(movie)} 
+                   className="w-full px-6 py-3 bg-[#E50914] text-white font-bold uppercase tracking-widest text-xs rounded hover:brightness-110 transition-colors"
+                 >
+                   Book Now
+                 </button>
+                 <p className="text-xs text-white text-center font-medium opacity-80 leading-snug line-clamp-4">
+                    {movie.synopsis}
+                 </p>
+              </div>
+            </div>
+            <h3 className="font-bold text-lg leading-tight mb-1 uppercase text-white">{movie.title}</h3>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="border border-white/20 px-1.5 rounded text-[10px] uppercase font-bold">{movie.rating}</span>
+               • {movie.duration}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{movie.genre.join(', ')}</p>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="text-3xl lg:text-5xl font-black uppercase tracking-tighter mb-8 text-white mt-16">
+        Coming <span className="text-[#E50914]">Soon</span>
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+         {[
+           { title: "Deadpool & Wolverine", desc: "Action, Comedy", cover: "https://picsum.photos/seed/dp3/400/600" },
+           { title: "Gladiator 2", desc: "Action, Drama", cover: "https://picsum.photos/seed/glad2/400/600" },
+           { title: "Joker: Folie à Deux", desc: "Crime, Drama", cover: "https://picsum.photos/seed/joker2/400/600" },
+           { title: "Nosferatu", desc: "Horror, Mystery", cover: "https://picsum.photos/seed/nosf/400/600" }
+         ].map((mock, idx) => (
+           <div key={idx} className="group">
+             <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#1A1A1A] mb-4 opacity-70 group-hover:opacity-100 transition-opacity">
+               <Image src={mock.cover} alt={mock.title} fill className="object-cover" referrerPolicy="no-referrer" />
+               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0A0A0A] to-transparent p-4">
+                 <span className="px-2 py-1 bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold uppercase tracking-wider rounded">Trailer</span>
+               </div>
+             </div>
+             <h3 className="font-bold text-lg leading-tight mb-1 uppercase text-white">{mock.title}</h3>
+             <p className="text-sm text-gray-500">{mock.desc}</p>
+           </div>
+         ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function ConcessionsView() {
+  const menus = [
+    {
+      category: 'Combos',
+      items: [
+        { name: 'Couples Combo', desc: '1 Large Popcorn, 2 Medium Drinks', price: '$18.99' },
+        { name: 'Family Pack', desc: '2 Large Popcorns, 4 Medium Drinks, 2 Candies', price: '$34.99' },
+        { name: 'Solo Snack', desc: '1 Regular Popcorn, 1 Regular Drink', price: '$10.99' },
+      ]
+    },
+    {
+      category: 'Popcorn',
+      items: [
+         { name: 'Small Popcorn', desc: 'Classic buttered popcorn', price: '$6.50' },
+         { name: 'Medium Popcorn', desc: 'Classic buttered popcorn', price: '$7.50' },
+         { name: 'Large Popcorn', desc: 'Free refills!', price: '$8.50' },
+         { name: 'Caramel Crunch', desc: 'Sweet caramel coated', price: '$9.00' },
+      ]
+    },
+    {
+       category: 'Drinks & Snacks',
+       items: [
+         { name: 'Fountain Drink', desc: 'Coca-Cola, Sprite, Diet Coke (Large)', price: '$5.50' },
+         { name: 'Bottled Water', desc: 'Dasani 20oz', price: '$4.50' },
+         { name: 'Nachos', desc: 'With jalapeños and cheese', price: '$7.00' },
+         { name: 'Hot Dog', desc: 'All beef frank', price: '$6.00' },
+       ]
+    }
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-5xl mx-auto px-4 md:px-8 py-12 w-full mb-16"
+    >
+      <div className="text-center mb-16 max-w-2xl mx-auto mt-8">
+        <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-white">
+          Snacks & <span className="text-[#E50914]">Drinks</span>
+        </h2>
+        <p className="text-gray-400">Order your favorite cinema snacks directly from your seat or the lobby kiosk. Skip the queue and enjoy the show.</p>
+      </div>
+
+      <div className="space-y-16">
+        {menus.map(menu => (
+          <div key={menu.category}>
+             <h3 className="text-2xl font-bold uppercase tracking-widest flex items-center gap-3 mb-8 text-white">
+               <span className="w-1.5 h-6 bg-[#E50914]"></span>{menu.category}
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {menu.items.map(item => (
+                 <div key={item.name} className="bg-[#141414] border border-white/5 p-6 rounded-xl flex justify-between items-center hover:border-white/20 transition-colors shadow-lg">
+                    <div>
+                      <h4 className="font-bold text-lg mb-1 text-white uppercase">{item.name}</h4>
+                      <p className="text-sm text-gray-500">{item.desc}</p>
+                    </div>
+                    <div className="text-xl font-black text-[#E50914] whitespace-nowrap pl-4">
+                      {item.price}
+                    </div>
+                 </div>
+               ))}
+             </div>
+          </div>
+        ))}
       </div>
     </motion.div>
   );
